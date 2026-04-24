@@ -1,11 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'product_detail_page.dart'; // <-- Tambahkan import ini
+import 'product_detail_page.dart';
 import 'cart_page.dart';
 
 class HomeTab extends StatefulWidget {
   final String userRole;
+
   const HomeTab({super.key, required this.userRole});
 
   @override
@@ -13,7 +14,6 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
-  // Variabel untuk menyimpan kategori yang sedang dipilih
   String _selectedCategory = 'Semua';
 
   @override
@@ -31,23 +31,24 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
         actions: [
-          // Hanya tampil jika BUKAN penjual
-          if (widget.userRole != 'penjual')
+          // --- HANYA TAMPIL JIKA BUKAN PENJUAL (PEMBELI) ---
+          if (widget.userRole != 'penjual') ...[
             IconButton(
               icon: const Icon(
                 Icons.shopping_cart_outlined,
                 color: Colors.orangeAccent,
               ),
               onPressed: () {
-                // <-- UBAH BAGIAN INI
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const CartPage()),
                 );
               },
             ),
+          ],
         ],
       ),
+      // Tombol FAB dihapus dari sini agar tidak dobel!
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,7 +148,7 @@ class _HomeTabState extends State<HomeTab> {
                 fontWeight: FontWeight.w900,
               ),
             ),
-            SizedBox(height: 5),
+            const SizedBox(height: 5),
             Text(
               "Potongan 50% All Items",
               style: TextStyle(color: Colors.white, fontSize: 14),
@@ -276,10 +277,8 @@ class _HomeTabState extends State<HomeTab> {
 
             if (stock <= 0) isSold = true;
 
-            // --- PERUBAHAN DISINI: Bungkus dengan GestureDetector ---
             return GestureDetector(
               onTap: () {
-                // Arahkan ke halaman Detail Produk saat diklik
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -376,7 +375,6 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
             );
-            // --- AKHIR PERUBAHAN ---
           },
         );
       },

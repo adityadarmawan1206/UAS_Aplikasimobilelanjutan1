@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <-- Tambahkan import ini
 import 'package:flutter/material.dart';
 
 class AddProductPage extends StatefulWidget {
@@ -13,23 +14,35 @@ class _AddProductPageState extends State<AddProductPage> {
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _imageUrlController = TextEditingController();
   final TextEditingController _stockController = TextEditingController();
-  final TextEditingController _descriptionController =
-      TextEditingController(); // <-- Controller Deskripsi
+  final TextEditingController _descriptionController = TextEditingController();
 
   String? _selectedCategory;
   final List<String> _categories = ['Mesin', 'Oli', 'Ban', 'Lampu', 'Tools'];
   bool _isLoading = false;
 
   Future<void> _saveProduct() async {
+    // Validasi Input
     if (_nameController.text.isEmpty ||
         _priceController.text.isEmpty ||
         _imageUrlController.text.isEmpty ||
         _stockController.text.isEmpty ||
-        _descriptionController.text.isEmpty || // <-- Validasi deskripsi
+        _descriptionController.text.isEmpty ||
         _selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Harap isi semua kolom dan pilih kategori!"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    // Ambil data user yang sedang login
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Gagal: Anda belum login!"),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -41,17 +54,19 @@ class _AddProductPageState extends State<AddProductPage> {
     try {
       int stockValue = int.tryParse(_stockController.text) ?? 0;
 
+      // Simpan data ke Firestore
       await FirebaseFirestore.instance.collection('products').add({
         'name': _nameController.text,
         'price': _priceController.text,
         'imageUrl': _imageUrlController.text,
         'category': _selectedCategory,
         'stock': stockValue,
-        'description':
-            _descriptionController.text, // <-- Simpan deskripsi ke database
+        'description': _descriptionController.text,
         'soldCount': 0,
         'isSoldOut': stockValue <= 0,
         'createdAt': Timestamp.now(),
+        'userId':
+            user.uid, // <-- INI KUNCI UTAMANYA (Biar terhubung ke info toko)
       });
 
       if (mounted) {
@@ -83,7 +98,7 @@ class _AddProductPageState extends State<AddProductPage> {
     _priceController.dispose();
     _imageUrlController.dispose();
     _stockController.dispose();
-    _descriptionController.dispose(); // <-- Dispose
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -92,7 +107,7 @@ class _AddProductPageState extends State<AddProductPage> {
       labelText: label,
       labelStyle: const TextStyle(color: Colors.white54),
       prefixIcon: Icon(icon, color: Colors.orangeAccent),
-      alignLabelWithHint: true, // Biar label di atas pas mode multiline
+      alignLabelWithHint: true,
       filled: true,
       fillColor: const Color(0xFF1E1E1E),
       enabledBorder: OutlineInputBorder(
@@ -178,11 +193,9 @@ class _AddProductPageState extends State<AddProductPage> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // --- INPUT DESKRIPSI BARU ---
             TextField(
               controller: _descriptionController,
-              maxLines: 4, // Supaya box-nya besar bisa nulis banyak
+              maxLines: 4,
               style: const TextStyle(color: Colors.white),
               decoration: _customInputDecoration(
                 "Deskripsi Produk",
@@ -190,7 +203,6 @@ class _AddProductPageState extends State<AddProductPage> {
               ),
             ),
             const SizedBox(height: 20),
-
             TextField(
               controller: _imageUrlController,
               keyboardType: TextInputType.url,
