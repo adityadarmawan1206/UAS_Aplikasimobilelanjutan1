@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'checkout_page.dart';
+import 'store_page.dart';
 
 class ProductDetailPage extends StatelessWidget {
   final String productId;
@@ -55,8 +56,14 @@ class ProductDetailPage extends StatelessWidget {
     String description =
         productData['description'] ?? 'Tidak ada deskripsi untuk produk ini.';
 
-    // Mengambil ID Penjual dari data produk (Pastikan field ini ada di collection 'products' kamu!)
+    // Mengambil ID Penjual dari data produk
     String sellerId = productData['userId'] ?? productData['sellerId'] ?? '';
+
+    // --- LOGIKA CEK PENJUAL ---
+    // Ambil UID user yang sedang login
+    final currentUser = FirebaseAuth.instance.currentUser;
+    // Cek apakah user yang login adalah penjual produk ini
+    bool isSeller = currentUser != null && currentUser.uid == sellerId;
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -138,7 +145,7 @@ class ProductDetailPage extends StatelessWidget {
                   ),
                   const Divider(color: Colors.white24, height: 40),
 
-                  // --- BAGIAN INFO TOKO (Terhubung ke Firestore Users) ---
+                  // --- BAGIAN INFO TOKO ---
                   FutureBuilder<DocumentSnapshot>(
                     future: sellerId.isNotEmpty
                         ? FirebaseFirestore.instance
@@ -147,7 +154,6 @@ class ProductDetailPage extends StatelessWidget {
                               .get()
                         : null,
                     builder: (context, snapshot) {
-                      // Nilai default jika masih loading atau data tidak ditemukan
                       String finalStoreName = 'Toko Tidak Diketahui';
                       String finalLocation = 'Lokasi Tidak Diketahui';
 
@@ -155,11 +161,9 @@ class ProductDetailPage extends StatelessWidget {
                         final sellerData =
                             snapshot.data!.data() as Map<String, dynamic>;
 
-                        // Mengambil nama toko sesuai screenshot databasemu
                         finalStoreName =
                             sellerData['storeName'] ?? finalStoreName;
 
-                        // Menggabungkan kelurahan dan province sesuai screenshot databasemu
                         String kel = sellerData['city'] ?? '';
                         String prov = sellerData['province'] ?? '';
 
@@ -206,8 +210,22 @@ class ProductDetailPage extends StatelessWidget {
                               ],
                             ),
                           ),
+
+                          // Jangan lupa import file store_page.dart di paling atas
+                          // import 'store_page.dart';
                           OutlinedButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              // Navigasi ke halaman toko dengan mengirimkan ID Penjual
+                              if (sellerId.isNotEmpty) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        StorePage(sellerId: sellerId),
+                                  ),
+                                );
+                              }
+                            },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.orangeAccent,
                               side: const BorderSide(
@@ -236,84 +254,88 @@ class ProductDetailPage extends StatelessWidget {
                     description,
                     style: const TextStyle(color: Colors.white70, height: 1.5),
                   ),
-                  const SizedBox(height: 80),
+                  // Berikan padding bawah yang cukup agar text tidak tertutup bottomSheet (jika bukan penjual)
+                  SizedBox(height: isSeller ? 20 : 80),
                 ],
               ),
             ),
           ],
         ),
       ),
-      bottomSheet: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-        color: const Color(0xFF1E1E1E),
-        child: Row(
-          children: [
-            // TOMBOL KERANJANG
-            Expanded(
-              flex: 1,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  side: const BorderSide(color: Colors.orangeAccent),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+
+      // Jika user adalah penjual, sembunyikan bottomSheet. Jika bukan, tampilkan tombol keranjang & beli
+      bottomSheet: isSeller
+          ? const SizedBox.shrink()
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              color: const Color(0xFF1E1E1E),
+              child: Row(
+                children: [
+                  // TOMBOL KERANJANG
+                  Expanded(
+                    flex: 1,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        side: const BorderSide(color: Colors.orangeAccent),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: stock > 0 ? () => _addToCart(context) : null,
+                      child: const Icon(
+                        Icons.add_shopping_cart,
+                        color: Colors.orangeAccent,
+                      ),
+                    ),
                   ),
-                ),
-                onPressed: stock > 0 ? () => _addToCart(context) : null,
-                child: const Icon(
-                  Icons.add_shopping_cart,
-                  color: Colors.orangeAccent,
-                ),
+                  const SizedBox(width: 15),
+
+                  // TOMBOL BELI SEKARANG
+                  Expanded(
+                    flex: 3,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        backgroundColor: Colors.orangeAccent,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: stock > 0
+                          ? () {
+                              List<Map<String, dynamic>> item = [
+                                {
+                                  'productId': productId,
+                                  'productName': productData['name'],
+                                  'price': productData['price'],
+                                  'imageUrl': productData['imageUrl'],
+                                  'quantity': 1,
+                                },
+                              ];
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      CheckoutPage(checkoutItems: item),
+                                ),
+                              );
+                            }
+                          : null,
+                      child: Text(
+                        stock > 0 ? "BELI SEKARANG" : "STOK HABIS",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 15),
-
-            // TOMBOL BELI SEKARANG
-            Expanded(
-              flex: 3,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  backgroundColor: Colors.orangeAccent,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: stock > 0
-                    ? () {
-                        // Format data produk ini menjadi List agar cocok dengan CheckoutPage
-                        List<Map<String, dynamic>> item = [
-                          {
-                            'productId': productId,
-                            'productName': productData['name'],
-                            'price': productData['price'],
-                            'imageUrl': productData['imageUrl'],
-                            'quantity': 1,
-                          },
-                        ];
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                CheckoutPage(checkoutItems: item),
-                          ),
-                        );
-                      }
-                    : null,
-                child: Text(
-                  stock > 0 ? "BELI SEKARANG" : "STOK HABIS",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

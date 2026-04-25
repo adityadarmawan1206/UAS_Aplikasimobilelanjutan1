@@ -1,6 +1,11 @@
+import 'dart:async';
+import 'package:app/transaction_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+// TODO: Pastikan kamu meng-import halaman TransactionPage kamu di sini
+// import 'package:nama_project_kamu/transaction_page.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<Map<String, dynamic>> checkoutItems;
@@ -178,6 +183,82 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
+  // --- FUNGSI ANIMASI & NAVIGASI KHUSUS COD ---
+  void _showCODSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Tidak bisa ditutup dengan tap di luar
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(30.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Animasi Bouncy Icon
+                TweenAnimationBuilder(
+                  duration: const Duration(milliseconds: 800),
+                  tween: Tween<double>(begin: 0, end: 1),
+                  curve: Curves.elasticOut,
+                  builder: (context, double value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: const Icon(
+                        Icons.local_shipping, // Logo Truk Pengiriman
+                        color: Colors.orangeAccent,
+                        size: 80,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  "Pesanan Diproses",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Mohon tunggu, kamu akan diarahkan ke halaman pesanan...",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                const CircularProgressIndicator(color: Colors.orangeAccent),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Tunggu 5 Detik, lalu arahkan ke halaman TransactionPage
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.pop(context); // Tutup dialog
+
+        // Pindah ke halaman TransactionPage
+        // Pastikan kelas TransactionPage sudah diimport di atas
+        // Navigator.pushAndRemoveUntil digunakan agar user tidak bisa 'back' ke halaman checkout ini lagi
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            // Ganti pemanggilan TransactionPage() sesuai dengan parameter di kodemu (misal jika ada inisial tab)
+            builder: (context) => const TransactionPage(),
+          ),
+          (route) => route.isFirst,
+        );
+      }
+    });
+  }
+
   Future<void> _processOrder() async {
     if (!_isAddressFilled) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -221,7 +302,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'productName': item['productName'],
           'quantity': qty,
           'totalPrice': total,
-          'status': 'Menunggu Pembayaran',
+          'status':
+              'Menunggu Pembayaran', // Bisa kamu ganti "Diproses" khusus COD di Firestore jika mau
           'paymentMethod': _selectedPayment,
           'shippingMethod': _selectedShipping,
           'shippingAddress': shippingAddress,
@@ -239,6 +321,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (mounted) {
         setState(() => _isLoading = false);
+
+        // --- LOGIKA NAVIGASI PEMBAYARAN ---
         if (_selectedPayment == 'OVO' || _selectedPayment == 'GoPay') {
           int grandTotal = _calculateSubtotal() + _shippingCost;
           Navigator.push(
@@ -252,7 +336,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
             ),
           );
+        } else if (_selectedPayment == 'COD') {
+          // Panggil animasi sukses 5 detik untuk COD
+          _showCODSuccessDialog();
         } else {
+          // Untuk Transfer Bank / Lainnya
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Pesanan berhasil dibuat! 🚀"),
@@ -294,7 +382,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. Bagian Alamat (Mirip Shopee)
+            // 1. Bagian Alamat
             InkWell(
               onTap: _showAddressForm,
               child: Container(
@@ -351,7 +439,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ),
               ),
             ),
-            // Garis pembatas estetik ala surat menyurat
+            // Garis pembatas estetik
             Container(
               height: 4,
               decoration: const BoxDecoration(
@@ -375,14 +463,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: [
-                      const Icon(
-                        Icons.storefront,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
+                    children: const [
+                      Icon(Icons.storefront, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
                         "Pesanan Kamu",
                         style: TextStyle(
                           color: Colors.white,
@@ -455,7 +539,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ],
                       ),
                     );
-                  }),
+                  }).toList(),
                 ],
               ),
             ),
@@ -589,12 +673,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 20), // Spasi sebelum bottom navigation
+            const SizedBox(height: 20),
           ],
         ),
       ),
 
-      // 6. Bar Bawah Ala Shopee
+      // 6. Bar Bawah
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
@@ -714,7 +798,6 @@ class TransactionPaymentPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 30),
-            // Tempatkan QR Code kamu di sini
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -759,3 +842,7 @@ class TransactionPaymentPage extends StatelessWidget {
     );
   }
 }
+
+// CATATAN:
+// Jangan lupa pindahkan class TransactionPaymentPage ke file terpisahnya sendiri
+// (transaction_payment_page.dart) jika kamu ingin rapi, lalu import ke file checkout ini!
